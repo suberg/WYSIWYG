@@ -1,5 +1,6 @@
 const editArea = document.querySelector('.edit-area');
-const buttons = document.querySelector('.toolkit');
+const toolkit = document.querySelector('.toolkit');
+const buttons = toolkit.querySelectorAll('button');
 
 const NODE_NAMES = {
     H1: 'h1',
@@ -8,19 +9,40 @@ const NODE_NAMES = {
     EM: 'em',
 };
 
+const NODES = {
+    [NODE_NAMES.H1]: {
+        tagName: 'font',
+        className: 'header1-text',
+    },
+    [NODE_NAMES.H2]: {
+        tagName: 'font',
+        className: 'header2-text',
+    },
+    [NODE_NAMES.B]: {
+        tagName: 'b',
+        className: 'bold-text',
+    },
+    [NODE_NAMES.EM]: {
+        tagName: 'em',
+        className: 'italic-text',
+    },
+};
+
+const NODE_BY_CLASS = {
+    'head-1': NODE_NAMES.H1,
+    'head-2': NODE_NAMES.H2,
+    'bold': NODE_NAMES.B,
+    'italic': NODE_NAMES.EM,
+};
+
+const TEXT_STYLES = ['fontWeight', 'fontSize', 'lineHeight'];
+
 const TOOLKIT_BUTTON_NAMES = [
     NODE_NAMES.H1,
     NODE_NAMES.H2,
     NODE_NAMES.B,
     NODE_NAMES.EM,
 ];
-
-const ELEMENTS_CLASSES = {
-    [NODE_NAMES.H1]: 'header1-text',
-    [NODE_NAMES.H2]: 'header2-text',
-    [NODE_NAMES.B]: 'bold-text',
-    [NODE_NAMES.EM]: 'italic-text',
-};
 
 /**
  * Creates and returns DOM element.
@@ -29,8 +51,6 @@ const ELEMENTS_CLASSES = {
  */
 const getElement = (tagName) => {
     const element = document.createElement(tagName);
-    if (ELEMENTS_CLASSES[tagName])
-        element.className = ELEMENTS_CLASSES[tagName];
 
     return element;
 };
@@ -59,8 +79,8 @@ const getSelectionNode = (selection) => {
 
 /**
  * Handles copy/cut events of selected text
- * @param {ClipboardEvent} event 
- * @param {Selection} selection 
+ * @param {ClipboardEvent} event
+ * @param {Selection} selection
  */
 const copyToClipboard = (event, selection) => {
     const selectionNode = getSelectionNode(selection);
@@ -68,17 +88,6 @@ const copyToClipboard = (event, selection) => {
     if (selectionNode) {
         const div = document.createElement('div');
         div.appendChild(selectionNode);
-        [NODE_NAMES.H1, NODE_NAMES.H2, NODE_NAMES.B, NODE_NAMES.EM].forEach((nodeName) => {
-            const elementsInEditArea = editArea.querySelector(nodeName);
-            const elements = div.querySelectorAll(nodeName);
-            elements.forEach((element) => {
-                const fontSize = getComputedStyle(
-                    elementsInEditArea,
-                    null
-                )?.getPropertyValue('font-size');
-                element.style.fontSize = fontSize;
-            });
-        });
         event.clipboardData.setData('text/html', div.innerHTML);
     }
 };
@@ -127,33 +136,44 @@ const unWrapElement = (tagName, selection) => {
 };
 
 /**
+ * Added necessary styles to selected text
+ * @param {HTMLElement} element 
+ * @param {String} className 
+ */
+const updateElementStyles = (element, className) => {
+    element.removeAttribute('style');
+    element.className = '';
+    element.style.display = 'inline';
+
+    if (className) {
+        element.classList.add(className);
+    }
+
+    if (element.tagName.toLowerCase() === 'font') {
+        TEXT_STYLES.forEach((styleName) => {
+            element.style[styleName] = getComputedStyle(element)[styleName];
+        });
+    }
+};
+
+/**
  * Handles buttons events. Adds/removes formatting to selected content.
  * @param {Event} event
  */
 const handleButtonClick = (event) => {
     event.preventDefault();
-    const tagName = event.target.closest('button')?.dataset.tag;
+    const buttonClass = event.target.closest('button')?.className;
     const selection = document.getSelection();
+    const isSelectedInsideEditArea = selection.containsNode(editArea, true);
 
-    if (!tagName || selection.isCollapsed) return;
+    if (!buttonClass || !isSelectedInsideEditArea || selection.isCollapsed) return;
+    const { tagName, className } = NODES[NODE_BY_CLASS[buttonClass]];
     const selectionNode = getSelectionNode(selection);
     let clonedSelection = selection.getRangeAt(0).cloneContents();
 
     if (
-        tagName === NODE_NAMES.H2 &&
-        clonedSelection.querySelector(NODE_NAMES.H1)
-    ) {
-        clonedSelection = unWrapElement(NODE_NAMES.H1, selection);
-    } else if (
-        tagName === NODE_NAMES.H1 &&
-        clonedSelection.querySelector(NODE_NAMES.H2)
-    ) {
-        clonedSelection = unWrapElement(NODE_NAMES.H2, selection);
-    }
-
-    if (
-        selectionNode.firstChild?.tagName?.toLowerCase() === tagName ||
-        clonedSelection.querySelector(tagName)
+        selectionNode.firstChild?.className === className ||
+        clonedSelection.querySelector(`.${className}`)
     ) {
         const updatedNode = unWrapElement(tagName, selection);
         if (updatedNode) {
@@ -165,6 +185,7 @@ const handleButtonClick = (event) => {
         element.appendChild(clonedSelection);
         selection.deleteFromDocument();
         selection.getRangeAt(0).insertNode(element);
+        updateElementStyles(element, className);
     }
 };
 
@@ -182,4 +203,4 @@ editArea.addEventListener('copy', handleCopy);
 editArea.addEventListener('cut', handleCut);
 editArea.addEventListener('input', handleClearInput);
 
-buttons.addEventListener('click', handleButtonClick);
+toolkit.addEventListener('click', handleButtonClick);
